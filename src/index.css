@@ -1,0 +1,934 @@
+:root{
+  --ink:#141310;
+  --asphalt:#1c1a16;
+  --asphalt-2:#242019;
+  --concrete:#8d867c;
+  --concrete-dim:#5c564e;
+  --paper:#ece6d8;
+  --paper-dim:#d9d2c0;
+  --red:#ff2d3d;
+  --yellow:#f4c430;
+  --line:rgba(236,230,216,0.14);
+  --line-strong:rgba(236,230,216,0.28);
+  /* Section backgrounds, held just short of opaque so the fixed 3D logo
+     stays faintly readable behind the content it docks beside. */
+  --ink-veil:rgba(20,19,16,0.88);
+  --asphalt-2-veil:rgba(36,32,25,0.88);
+  --display:'Anton', sans-serif;
+  --body:'Space Grotesk', sans-serif;
+  --mono:'JetBrains Mono', monospace;
+  /* Scoped to the manifesto card's paragraphs only — everywhere else on
+     the site keeps --body. Space Grotesk's geometric letterforms read as
+     busier than they need to for a passage meant to actually be read, not
+     glanced at; Work Sans is a much more conventional reading rhythm. */
+  --read:'Work Sans', sans-serif;
+}
+
+/* ---------- LIGHT THEME ---------- */
+/* Token VALUES swap, not token names or usage — --ink stays "the page
+   background" and --paper stays "text on that background" in both
+   themes, so no component CSS needs to change for the general case. Only
+   the token definitions differ.
+
+   A few spots deliberately represent a FIXED physical material rather
+   than the page's theme — .manifesto-card (an actual paper card glued to
+   the page, always light-bg/dark-text) and the hero's radial-gradient
+   vignette (tuned for a dark backdrop) — those get their own overrides
+   below rather than inheriting from these tokens; see their rules. */
+:root[data-theme="light"]{
+  --ink:#f3efe4;
+  --asphalt:#ece5d3;
+  --asphalt-2:#e3dbc5;
+  /* Dimmer = closer to the page background in BOTH themes — on a dark
+     page that means darker, on a light page it means lighter, so these
+     two swap which one is more/less saturated relative to dark mode. */
+  --concrete:#5c5347;
+  --concrete-dim:#948c7d;
+  --paper:#1c1a16;
+  --paper-dim:#3a352c;
+  /* A touch deeper than the dark-theme red — the same bright red reads
+     with noticeably less text contrast against a light background than
+     it does against near-black. */
+  --red:#d4172a;
+  --line:rgba(20,19,16,0.12);
+  --line-strong:rgba(20,19,16,0.24);
+  --ink-veil:rgba(243,239,228,0.88);
+  --asphalt-2-veil:rgba(227,219,197,0.88);
+}
+
+*{margin:0;padding:0;box-sizing:border-box;}
+
+/* No `scroll-behavior:smooth` here on purpose — Lenis (useSmoothScroll)
+   owns smooth scrolling, and native smooth-scroll fights it and stutters.
+   Reduced-motion visitors get plain native scrolling instead. */
+@media (prefers-reduced-motion: reduce){
+  html{scroll-behavior:auto;}
+  *{animation-duration:0.01ms !important; animation-iteration-count:1 !important; transition-duration:0.01ms !important;}
+}
+
+body{
+  background:var(--ink);
+  color:var(--paper);
+  font-family:var(--body);
+  line-height:1.5;
+  overflow-x:hidden;
+  position:relative;
+}
+
+/* grain overlay — rendered by <GrainOverlay /> instead of body::before,
+   since React owns the DOM tree here */
+.grain-overlay{
+  position:fixed;
+  inset:0;
+  z-index:999;
+  pointer-events:none;
+  opacity:0.05;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode:overlay;
+}
+
+/* ---------- LOADING SCREEN ---------- */
+/* Above everything — grain(999), scroll-progress(1000), header(100), the
+   3D canvas(101) — since it needs to fully cover the page while it's up. */
+.loading-screen{
+  position:fixed;
+  inset:0;
+  z-index:2000;
+  background:var(--ink);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:28px;
+  transition:opacity 0.5s ease;
+}
+.loading-screen.is-ready{
+  opacity:0;
+  pointer-events:none;
+}
+.loading-logo{
+  width:min(40vw, 180px);
+  height:auto;
+  filter:invert(1) drop-shadow(0 2px 6px rgba(0,0,0,0.4));
+  animation:loading-pulse 1.8s ease-in-out infinite;
+}
+@keyframes loading-pulse{
+  0%, 100%{ transform:scale(1); opacity:0.85; }
+  50%{ transform:scale(1.06); opacity:1; }
+}
+.loading-bar{
+  width:140px;
+  height:2px;
+  background:var(--line-strong);
+  overflow:hidden;
+  position:relative;
+}
+.loading-bar span{
+  position:absolute;
+  top:0; left:0;
+  height:100%;
+  width:40%;
+  background:var(--red);
+  animation:loading-sweep 1.3s ease-in-out infinite;
+}
+@keyframes loading-sweep{
+  0%{ left:-40%; }
+  100%{ left:100%; }
+}
+
+a{color:inherit;}
+ul{list-style:none;}
+
+:focus-visible{
+  outline:3px solid var(--yellow);
+  outline-offset:3px;
+}
+
+/* ---------- 3D LOGO CANVAS ---------- */
+/* One persistent WebGL layer for the whole app.
+   Only mounted for desktop, fine-pointer, non-reduced-motion visitors —
+   see BrandObject / useMotionPrefs.
+   z-index sits ABOVE header (100): once docked, the object renders in the
+   header's logo-mark corner, and header.solid (opaque + blurred once
+   scrolled) would otherwise paint over it and hide it completely. It only
+   occupies the far-left ~150px, well clear of the nav links on the right,
+   so painting on top of the header bar doesn't cover anything else. Still
+   under grain-overlay(999), page-wipe(900), scroll-progress(1000), and
+   cursor(1001), so those keep layering correctly everywhere on the page. */
+.logo-canvas{
+  position:fixed;
+  inset:0;
+  z-index:101;
+  pointer-events:none;
+}
+.logo-canvas canvas{
+  /* Framer/R3F set inline width+height; make sure nothing overflows. */
+  display:block;
+  width:100% !important;
+  height:100% !important;
+}
+/* R3F wraps <canvas> in its own nested resize-observer <div>s, and BOTH
+   the canvas and one of those wrapper divs get pointer-events:auto set
+   INLINE (for R3F's own raycasting) — inline styles beat any selector
+   here short of !important, and a plain `.logo-canvas canvas` rule only
+   catches the innermost element, not the wrapper div actually doing the
+   intercepting. The wildcard is deliberate: it doesn't rely on knowing
+   R3F's exact internal DOM shape (which isn't part of its public API and
+   could change), it just guarantees nothing inside this layer can ever
+   capture a click. Without this, the canvas — raised above the header
+   (z-index:101) so the docked logo is visible — sits on top of every
+   clickable element on the page and swallows every click site-wide. Real
+   regression caught and fixed 2026-08-14. */
+.logo-canvas, .logo-canvas *{
+  pointer-events:none !important;
+}
+
+/* Hero content sits above the canvas — the 3D object reads as behind the
+   copy rather than covering it. .wrap needs position:relative here for
+   z-index to take effect at all (it's a plain block, position:static by
+   default). .scroll-cue does NOT — it already has its own, more specific
+   `.scroll-cue{position:absolute}` rule below. Giving it position:relative
+   here too was a real bug: `.hero .scroll-cue` (two classes) is MORE
+   specific than the plain `.scroll-cue` selector, so this rule's relative
+   silently beat that absolute regardless of source order, turning it into
+   a full-width in-flow block that overlapped the CTA row under it. Found
+   and fixed 2026-08-14 while debugging an unrelated click-through issue. */
+.hero > .wrap{ position:relative; z-index:2; }
+.scroll-cue{ z-index:2; }
+.section, footer{ position:relative; z-index:2; }
+
+/* The sections below the hero are very slightly translucent (see the
+   --*-veil tokens) so the docked logo stays faintly present behind them
+   instead of being sealed off by an opaque background. body stays solid
+   --ink underneath, so the alternating light/dark rhythm is preserved. */
+
+/* Static stand-in when 3D is off. Lives inside the hero so it scrolls
+   away naturally instead of following the viewport. */
+.logo-fallback{
+  position:absolute;
+  top:50%;
+  right:6%;
+  transform:translateY(-50%);
+  width:min(38vw, 380px);
+  height:auto;
+  opacity:0.75;
+  pointer-events:none;
+  z-index:1;
+}
+@media (max-width: 860px){
+  .logo-fallback{
+    width:min(60vw, 300px);
+    right:50%;
+    transform:translate(50%, -50%);
+    opacity:0.16;
+  }
+}
+
+/* ---------- SCROLL PROGRESS ---------- */
+/* z-index must clear .grain-overlay (999) or the grain washes it out. */
+.scroll-progress{
+  position:fixed;
+  top:0; left:0; right:0;
+  height:2px;
+  background:var(--red);
+  transform-origin:0 50%;
+  z-index:1000;
+  pointer-events:none;
+}
+
+/* ---------- PAGE WIPE ---------- */
+.page-wipe{
+  position:fixed;
+  inset:0;
+  background:var(--ink);
+  z-index:900;
+  pointer-events:none;
+  transform-origin:left center;
+}
+
+/* ---------- SPLIT TEXT ---------- */
+/* The wrapper is what gets observed for the in-view trigger, so it needs a
+   real box to measure (see SplitText for why it can't be the pieces). */
+.split-root{display:inline-block;}
+/* Each word is its own clipping box so pieces can slide up from below
+   without bleeding into the line above. */
+.split-word{
+  display:inline-block;
+  overflow:hidden;
+  vertical-align:top;
+  /* Descenders would otherwise be clipped by the overflow. */
+  padding-bottom:0.12em;
+  margin-bottom:-0.12em;
+}
+.split-piece{ display:inline-block; will-change:transform; }
+
+/* ---------- MARQUEE ---------- */
+.marquee{
+  overflow:hidden;
+  padding:26px 0;
+  border-top:1px solid var(--line);
+  border-bottom:1px solid var(--line);
+  background:var(--ink-veil);
+  position:relative;
+  z-index:2;
+}
+.marquee-track{
+  display:flex;
+  width:max-content;
+  will-change:transform;
+}
+.marquee-item{
+  font-family:var(--display);
+  font-size:clamp(28px, 5vw, 56px);
+  text-transform:uppercase;
+  letter-spacing:0.02em;
+  color:var(--paper);
+  opacity:0.13;
+  white-space:nowrap;
+  display:inline-flex;
+  align-items:center;
+}
+.marquee-sep{ color:var(--red); opacity:0.8; margin:0 28px; }
+
+.wrap{
+  max-width:1180px;
+  margin:0 auto;
+  padding:0 28px;
+}
+
+/* ---------- NAV ---------- */
+header{
+  position:fixed;
+  top:0; left:0; right:0;
+  z-index:100;
+  padding:20px 28px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  transition:background 0.3s ease, border-color 0.3s ease;
+  border-bottom:1px solid transparent;
+}
+header.solid{
+  background:rgba(20,19,16,0.92);
+  backdrop-filter:blur(6px);
+  border-bottom-color:var(--line);
+}
+/* A near-black bar over a light page reads as broken, not "solid". */
+:root[data-theme="light"] header.solid{
+  background:rgba(243,239,228,0.92);
+}
+.logo-mark{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  /* min-height keeps the header's own height consistent whether or not
+     the <img> is rendered — 3D-capable visitors get an empty NavLink here
+     (still clickable) that the docked 3D logo visually sits over. */
+  min-width:100px;
+  min-height:100px;
+}
+.logo-mark img{
+  height:100px;
+  width:auto;
+  display:block;
+  /* Single declaration — this was split across two `filter` lines, so
+     invert(1) silently overwrote the drop-shadow and it never rendered. */
+  filter:invert(1) drop-shadow(0 2px 6px rgba(0,0,0,0.4));
+}
+/* The SVG's native art is dark line-work; invert(1) makes it read as
+   white against the dark theme's header. Left inverted in light mode it
+   would flip to white-on-light — nearly invisible — so it stays
+   un-inverted there and shows its natural dark colour instead. */
+:root[data-theme="light"] .logo-mark img{
+  filter:drop-shadow(0 2px 6px rgba(0,0,0,0.15));
+}
+nav ul{
+  display:flex;
+  gap:34px;
+  font-family:var(--mono);
+  font-size:13px;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+}
+nav a{
+  text-decoration:none;
+  position:relative;
+  padding-bottom:3px;
+}
+nav a::after{
+  content:"";
+  position:absolute;
+  left:0; bottom:0;
+  width:0; height:1px;
+  background:var(--red);
+  transition:width 0.25s ease;
+}
+nav a:hover::after, nav a:focus-visible::after, nav a.active::after{width:100%;}
+nav a.active{color:var(--red);}
+.nav-toggle{display:none;}
+
+/* ---------- LANGUAGE / THEME TOGGLES ---------- */
+/* Lives inside the same <ul> as the nav links (see Header.jsx) — it rides
+   along with the existing desktop-row / mobile-drawer layout for free. */
+.nav-controls{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  padding-left:14px;
+  margin-left:4px;
+  border-left:1px solid var(--line);
+}
+.lang-toggle{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-family:var(--mono);
+  font-size:12px;
+  letter-spacing:0.06em;
+}
+.lang-toggle span{color:var(--concrete-dim);}
+.lang-toggle button{
+  background:none;
+  border:none;
+  color:var(--concrete-dim);
+  cursor:pointer;
+  padding:2px 4px;
+  font:inherit;
+  letter-spacing:inherit;
+  text-transform:uppercase;
+  transition:color 0.2s ease;
+}
+.lang-toggle button.active{color:var(--red);}
+.lang-toggle button:hover, .lang-toggle button:focus-visible{color:var(--paper);}
+.theme-toggle{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:28px;
+  height:28px;
+  background:none;
+  border:1px solid var(--line-strong);
+  border-radius:50%;
+  color:var(--concrete);
+  cursor:pointer;
+  padding:0;
+  transition:color 0.2s ease, border-color 0.2s ease;
+}
+.theme-toggle:hover, .theme-toggle:focus-visible{
+  color:var(--red);
+  border-color:var(--red);
+}
+.theme-toggle svg{display:block;}
+
+/* ---------- HERO ---------- */
+.hero{
+  min-height:100svh;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  position:relative;
+  padding:140px 28px 100px;
+  background:
+    radial-gradient(ellipse 65% 50% at 75% 35%, rgba(255,45,61,0.14), transparent 60%),
+    radial-gradient(ellipse 55% 40% at 15% 80%, rgba(0,0,0,0.35), transparent 60%),
+    var(--asphalt);
+  border-bottom:1px solid var(--line);
+}
+/* The dark-mode vignette's black shadow layer (above) deepens shadow on a
+   near-black hero — the same 35%-opacity black reads as a muddy, stray
+   smudge on a light background instead. Softer and warmer here. */
+:root[data-theme="light"] .hero{
+  background:
+    radial-gradient(ellipse 65% 50% at 75% 35%, rgba(212,23,42,0.12), transparent 60%),
+    radial-gradient(ellipse 55% 40% at 15% 80%, rgba(28,26,22,0.08), transparent 60%),
+    var(--asphalt);
+}
+.eyebrow{
+  font-family:var(--mono);
+  font-size:12px;
+  letter-spacing:0.18em;
+  text-transform:uppercase;
+  color:var(--concrete);
+  margin-bottom:26px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.eyebrow::before{
+  content:"";
+  width:22px;height:1px;
+  background:var(--concrete-dim);
+  display:inline-block;
+}
+
+.tagline{
+  font-family:var(--body);
+  font-weight:700;
+  font-size:clamp(18px, 2.4vw, 26px);
+  max-width:640px;
+  color:var(--paper);
+  margin-bottom:18px;
+}
+.tagline em{
+  font-style:normal;
+  color:var(--red);
+}
+.hero-sub{
+  font-size:15px;
+  color:var(--concrete);
+  max-width:480px;
+  margin-bottom:44px;
+}
+
+.cta-row{display:flex; gap:16px; flex-wrap:wrap; align-items:center;}
+.btn{
+  font-family:var(--mono);
+  font-size:13px;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  text-decoration:none;
+  padding:14px 26px;
+  border-radius:2px;
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  transition:transform 0.2s ease, background 0.2s ease;
+  cursor:pointer;
+}
+.btn-fill{
+  background:var(--paper);
+  color:var(--ink);
+  font-weight:700;
+  border:none;
+}
+.btn-fill:hover, .btn-fill:focus-visible{
+  background:var(--red);
+  color:var(--ink);
+  transform:translateY(-2px);
+}
+.btn-line{
+  border:1px solid var(--line-strong);
+  color:var(--paper);
+  background:none;
+}
+.btn-line:hover, .btn-line:focus-visible{
+  border-color:var(--red);
+  transform:translateY(-2px);
+}
+
+.scroll-cue{
+  position:absolute;
+  bottom:34px; left:28px;
+  font-family:var(--mono);
+  font-size:11px;
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+  color:var(--concrete-dim);
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.scroll-cue span{
+  width:1px; height:34px;
+  background:var(--concrete-dim);
+  position:relative;
+  overflow:hidden;
+}
+.scroll-cue span::after{
+  content:"";
+  position:absolute;
+  top:-100%; left:0;
+  width:100%; height:100%;
+  background:var(--red);
+  animation:drip 2.2s ease-in-out infinite;
+}
+@keyframes drip{
+  0%{top:-100%;}
+  60%{top:100%;}
+  100%{top:100%;}
+}
+
+/* ---------- SECTION LABEL ---------- */
+.section{padding:120px 0;}
+.section-head{
+  display:flex;
+  align-items:baseline;
+  gap:18px;
+  margin-bottom:56px;
+  flex-wrap:wrap;
+}
+/* Deliberately NOT sticky. A sticky element only travels inside its
+   containing block, and .section-head is a ~56px flex row — so it can't
+   follow the section, and the align-self needed to make sticky apply at
+   all knocks the number off the title's baseline. The scroll-spy nav and
+   the progress bar already cover "where am I on the page". */
+.section-num{
+  font-family:var(--mono);
+  font-size:13px;
+  color:var(--red);
+}
+.section-title{
+  font-family:var(--display);
+  font-size:clamp(32px, 5vw, 52px);
+  text-transform:uppercase;
+  letter-spacing:0.01em;
+}
+.section-rule{
+  flex:1;
+  height:1px;
+  background:var(--line);
+  min-width:60px;
+}
+
+/* ---------- MANIFESTO ---------- */
+.manifesto{background:var(--ink-veil);}
+.manifesto-grid{
+  display:grid;
+  grid-template-columns:1fr 1.3fr;
+  gap:60px;
+  align-items:start;
+}
+.manifesto-card{
+  /* Fixed, NOT var(--paper)/var(--ink) — this represents an actual paper
+     card glued to the page, which should always look like paper (light
+     bg, dark text) regardless of site theme. --paper/--ink swap values in
+     light mode (so the general page still inverts correctly), which would
+     flip this card to a dark card with light text — backwards for
+     something meant to look like a fixed physical material. */
+  background:#ece6d8;
+  color:#141310;
+  padding:44px 40px;
+  position:relative;
+  filter:url(#roughEdge);
+  box-shadow:0 24px 50px rgba(0,0,0,0.35);
+}
+.manifesto-card::before,
+.manifesto-card::after{
+  content:"";
+  position:absolute;
+  width:46px; height:18px;
+  background:rgba(244,196,48,0.75);
+  box-shadow:0 2px 6px rgba(0,0,0,0.25);
+}
+.manifesto-card::before{ top:-10px; left:34px; transform:rotate(-4deg); }
+.manifesto-card::after{ bottom:-10px; right:34px; transform:rotate(3deg); }
+.manifesto-card p{
+  font-family:var(--read);
+  font-weight:600;
+  font-size:16px;
+  line-height:1.65;
+  margin-bottom:16px;
+  color:#2a2722;
+}
+.manifesto-card p:last-child{margin-bottom:0;}
+.manifesto-quote{
+  font-family:var(--display);
+  font-size:clamp(28px, 3.6vw, 44px);
+  text-transform:uppercase;
+  line-height:1.05;
+  color:var(--paper);
+}
+.manifesto-quote .hi{color:var(--red);}
+.manifesto-list{
+  margin-top:34px;
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+  font-family:var(--mono);
+  font-size:13px;
+  color:var(--concrete);
+}
+.manifesto-list li{display:flex; gap:12px;}
+.manifesto-list li::before{content:"—"; color:var(--red);}
+
+/* ---------- SONIDOS ---------- */
+.sonidos{background:var(--ink-veil);}
+.sonidos-lede{
+  font-family:var(--body);
+  font-weight:600;
+  font-size:clamp(18px, 2.2vw, 24px);
+  max-width:520px;
+  color:var(--concrete);
+  margin-bottom:44px;
+}
+.sonidos-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));
+  gap:24px;
+}
+.sonidos-grid iframe{
+  width:100%;
+  border-radius:2px;
+  border:none;
+  display:block;
+}
+/* The embeds were the deadest thing on the page — give them a card that
+   responds to the pointer like everything else does. */
+.sonido-card{
+  border:1px solid var(--line);
+  border-radius:2px;
+  overflow:hidden;
+  background:var(--asphalt);
+  transition:transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.sonido-card:hover, .sonido-card:focus-within{
+  transform:translateY(-4px);
+  border-color:var(--red);
+  box-shadow:0 14px 30px rgba(0,0,0,0.35);
+}
+
+/* ---------- MOVEMENT / INSTAGRAM ---------- */
+.movement{background:var(--asphalt-2-veil); border-top:1px solid var(--line); border-bottom:1px solid var(--line);}
+.movement-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));
+  gap:20px;
+}
+.movement-card{
+  padding:26px 22px;
+  border:1px solid var(--line);
+  background:var(--ink);
+  font-size:14px;
+  color:var(--paper);
+  position:relative;
+}
+/* Varied per position rather than a strict odd/even flip, so the wall
+   reads as hand-pinned instead of mechanically alternating. */
+.movement-card{transition:transform 0.25s ease, border-color 0.25s ease;}
+.movement-card:nth-child(4n+1){transform:rotate(-0.7deg);}
+.movement-card:nth-child(4n+2){transform:rotate(0.5deg);}
+.movement-card:nth-child(4n+3){transform:rotate(-0.3deg);}
+.movement-card:nth-child(4n+4){transform:rotate(0.8deg);}
+.movement-card:hover{
+  transform:rotate(0deg) translateY(-5px);
+  border-color:var(--line-strong);
+}
+.movement-card .ig-tag{
+  display:block;
+  font-family:var(--mono);
+  font-size:11px;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  color:var(--red);
+  margin-bottom:12px;
+}
+.movement-cta{
+  margin-top:38px;
+  display:flex;
+  justify-content:center;
+}
+
+/* ---------- DESIGN STUDIO (placeholder) ---------- */
+.design-studio{background:var(--ink-veil);}
+.design-studio-placeholder{
+  border:1px dashed var(--line-strong);
+  padding:56px 40px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:12px;
+  text-align:center;
+}
+.design-studio-status{
+  font-family:var(--mono);
+  font-size:12px;
+  letter-spacing:0.12em;
+  text-transform:uppercase;
+  color:var(--red);
+}
+.design-studio-placeholder p{
+  color:var(--concrete);
+  max-width:420px;
+  font-size:15px;
+}
+
+/* ---------- DROPS (abstract teaser) ---------- */
+.drops{background:var(--asphalt-2-veil); border-top:1px solid var(--line); border-bottom:1px solid var(--line);}
+.drops-page{min-height:70vh; padding-top:160px;}
+
+.drops-teaser{
+  position:relative;
+  min-height:280px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  gap:14px;
+  padding:60px 20px;
+  overflow:hidden;
+}
+.drops-teaser-large{min-height:380px; padding:90px 20px;}
+.drops-teaser-icons{position:absolute; inset:0; pointer-events:none;}
+/* Dimmed, blurred silhouettes rather than crisp product icons — shapes
+   without form yet, not a catalog. */
+.drops-teaser-icon{
+  position:absolute;
+  stroke:var(--paper);
+  fill:none;
+  stroke-width:1.2;
+  opacity:0.08;
+  filter:blur(1.5px);
+}
+.drops-teaser-icon.icon-a{top:6%; left:8%; width:140px; height:140px; transform:rotate(-12deg);}
+.drops-teaser-icon.icon-b{top:55%; left:4%; width:100px; height:100px; transform:rotate(8deg);}
+.drops-teaser-icon.icon-c{top:10%; right:10%; width:110px; height:110px; transform:rotate(15deg);}
+.drops-teaser-icon.icon-d{bottom:6%; right:6%; width:130px; height:130px; transform:rotate(-6deg);}
+.drops-teaser-headline{
+  position:relative;
+  z-index:1;
+  font-family:var(--display);
+  font-size:clamp(24px, 3.4vw, 38px);
+  text-transform:uppercase;
+  color:var(--paper);
+}
+.drops-teaser-body{
+  position:relative;
+  z-index:1;
+  color:var(--concrete);
+  max-width:440px;
+  font-size:15px;
+}
+.drops-teaser .btn{position:relative; z-index:1; margin-top:8px;}
+@media (max-width: 600px){
+  /* Four overlapping icons crowd a narrow column — keep just the two
+     corner ones for a lighter touch. */
+  .drops-teaser-icon.icon-b, .drops-teaser-icon.icon-c{display:none;}
+}
+
+/* ---------- CONNECT ---------- */
+.connect{background:var(--ink-veil);}
+.connect-inner{
+  display:grid;
+  grid-template-columns:1.1fr 1fr;
+  gap:60px;
+  align-items:center;
+}
+.connect-title{
+  font-family:var(--display);
+  font-size:clamp(38px, 6vw, 76px);
+  text-transform:uppercase;
+  line-height:0.95;
+  margin-bottom:22px;
+}
+.connect-title span{color:var(--red);}
+.connect-copy{color:var(--concrete); max-width:420px; margin-bottom:34px; font-size:15px;}
+
+.signup{
+  display:flex;
+  border-bottom:2px solid var(--paper);
+  padding-bottom:10px;
+  max-width:420px;
+}
+.signup input{
+  flex:1;
+  background:transparent;
+  border:none;
+  color:var(--paper);
+  font-family:var(--mono);
+  font-size:14px;
+  padding:8px 4px;
+}
+.signup input::placeholder{color:var(--concrete-dim);}
+.signup input:focus{outline:none;}
+.signup button{
+  background:none;
+  border:none;
+  color:var(--red);
+  font-family:var(--mono);
+  font-size:13px;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  cursor:pointer;
+  padding:8px 6px;
+  overflow:hidden;
+}
+.signup button:hover, .signup button:focus-visible{color:var(--yellow);}
+.form-note{font-family:var(--mono); font-size:11px; color:var(--concrete-dim); margin-top:12px;}
+
+.social-stamps{display:flex; flex-direction:column; gap:16px;}
+.stamp{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:18px 22px;
+  border:1px solid var(--line-strong);
+  text-decoration:none;
+  font-family:var(--mono);
+  font-size:13px;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  transition:background 0.2s ease, transform 0.2s ease;
+}
+/* No transform here — Framer Motion owns `x` on these (see ConnectSection),
+   and a CSS transform on hover would fight the spring. */
+.stamp:hover, .stamp:focus-visible{
+  background:var(--paper);
+  color:var(--ink);
+}
+.stamp .arrow{transition:transform 0.2s ease;}
+.stamp:hover .arrow{transform:translateX(4px);}
+
+footer{
+  padding:34px 28px;
+  border-top:1px solid var(--line);
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  font-family:var(--mono);
+  font-size:11px;
+  letter-spacing:0.05em;
+  text-transform:uppercase;
+  color:var(--concrete-dim);
+  flex-wrap:wrap;
+  gap:10px;
+}
+.footer-links{display:flex; gap:20px; flex-wrap:wrap;}
+
+/* ---------- RESPONSIVE ---------- */
+@media (max-width: 860px){
+  nav ul{
+    position:fixed;
+    top:0; right:0;
+    height:100svh;
+    width:min(78vw, 320px);
+    background:var(--asphalt);
+    flex-direction:column;
+    justify-content:center;
+    align-items:flex-start;
+    padding:0 40px;
+    gap:28px;
+    font-size:16px;
+    transform:translateX(100%);
+    transition:transform 0.3s ease;
+    border-left:1px solid var(--line);
+  }
+  nav ul.open{transform:translateX(0);}
+  .nav-toggle{
+    display:flex;
+    flex-direction:column;
+    gap:5px;
+    background:none;
+    border:none;
+    cursor:pointer;
+    z-index:200;
+    padding:8px;
+  }
+  .nav-toggle span{width:22px; height:2px; background:var(--paper);}
+  .nav-controls{
+    padding-left:0;
+    margin-left:0;
+    border-left:none;
+    padding-top:20px;
+    margin-top:8px;
+    border-top:1px solid var(--line);
+    width:100%;
+  }
+  .manifesto-grid{grid-template-columns:1fr; gap:44px;}
+  .connect-inner{grid-template-columns:1fr; gap:44px;}
+  .section{padding:88px 0;}
+  /* The CTAs stack on narrow screens and grow the hero past the viewport,
+     which puts the absolutely-positioned cue on top of the second button.
+     It's decorative, and touch users don't need a scroll affordance. */
+  .scroll-cue{display:none;}
+}

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- No-FOUC theme script: runs before first paint, before ThemeContext
+         mounts. Always defaults to dark — this only ever touches the DOM
+         for a RETURNING visitor who previously chose light, so they don't
+         see a flash of dark before React catches up. -->
+    <script>
+      (function () {
+        try {
+          if (localStorage.getItem('bekind-theme') === 'light') {
+            document.documentElement.setAttribute('data-theme', 'light')
+          }
+        } catch (e) {}
+      })()
+    </script>
+    <meta name="description" content="BeKind es una marca costarricense de streetwear que promueve la amabilidad sobre la violencia." />
+    <title>BeKind Streetwear</title>
+
+    <link rel="icon" type="image/svg+xml" href="/Logosvg.svg" />
+    <meta name="theme-color" content="#141310" />
+
+    <!-- Social sharing. Update og:url to the real domain at deploy time. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="BeKind Streetwear" />
+    <meta property="og:title" content="BeKind Streetwear" />
+    <meta property="og:description" content="Cuando todos reaccionan, elegir la amabilidad es radical. Marca costarricense de streetwear." />
+    <meta property="og:image" content="/logo-fallback.png" />
+    <meta property="og:locale" content="es_CR" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="BeKind Streetwear" />
+    <meta name="twitter:description" content="Cuando todos reaccionan, elegir la amabilidad es radical. Marca costarricense de streetwear." />
+    <meta name="twitter:image" content="/logo-fallback.png" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Work+Sans:wght@500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

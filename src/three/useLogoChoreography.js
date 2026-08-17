@@ -26,7 +26,20 @@ import { MathUtils } from 'three'
 // with no top-edge clipping either — the previous y=1.4/scale=1.3 only
 // had ~8px of margin at one specific height and genuinely overlapped the
 // eyebrow text at shorter real-world windows.
-const CENTER = { x: 0.15, y: 1.53, z: 0, scale: 1.15 }
+// Tuned against a 1536x695 viewport (a real reported window size — a
+// perspective camera's vertical FOV means pixels-per-world-unit is driven
+// by CSS pixel HEIGHT alone, so the SAME world-space pose renders larger
+// in pixels on a taller window, not smaller. The header/eyebrow positions
+// are both near-fixed in pixels (padding-based), so taller windows push
+// this pose further into the header instead of away from it — the
+// opposite of what "shorter window = tighter fit" intuition suggests.
+// Confirmed by screenshot sweep across 695-1080px: this exact pose only
+// looks right at REF_HEIGHT; see the ratio compensation below useFrame
+// that rescales it for every other height instead of drifting with the
+// window.
+const REF_HEIGHT = 695
+const MAX_RATIO_HEIGHT = 1200
+const CENTER = { x: 0.15, y: 1.88, z: 0, scale: 0.95 }
 
 // Portrait/narrow viewports (phones) have a much narrower world-space
 // frustum than desktop at the same vertical FOV — width scales with
@@ -134,7 +147,25 @@ export default function useLogoChoreography(
     // overflows it. state.size.width is the actual CSS pixel viewport, the
     // same number the site's own CSS breakpoint is written against.
     const compact = state.size.width < COMPACT_BREAKPOINT
-    const center = compact ? CENTER_COMPACT : CENTER
+    // Desktop-only compensation for the height-vs-pixel-size relationship
+    // explained above CENTER — mobile's CENTER_COMPACT was tuned directly
+    // against real phone viewports (a much narrower size range in
+    // practice) and left as a fixed pose.
+    // ONE-DIRECTIONAL on purpose: only ever shrinks the pose (for windows
+    // TALLER than REF_HEIGHT), never grows it. REF_HEIGHT is already the
+    // tightest-fitting case — the pose was tuned there with barely any
+    // margin against the header — so scaling it UP for a shorter window
+    // immediately overflows (confirmed by screenshot at 620px). A window
+    // shorter than REF_HEIGHT needs no help: the same pixels-per-world-unit
+    // relationship that makes taller windows render the pose bigger
+    // already renders it smaller (safer) on shorter ones with no
+    // adjustment needed. MAX_RATIO_HEIGHT just stops it shrinking to a
+    // vanishingly tiny watermark on very tall monitors.
+    const effectiveHeight = MathUtils.clamp(state.size.height, REF_HEIGHT, MAX_RATIO_HEIGHT)
+    const heightRatio = compact ? 1 : REF_HEIGHT / effectiveHeight
+    const center = compact
+      ? CENTER_COMPACT
+      : { x: CENTER.x * heightRatio, y: CENTER.y * heightRatio, z: CENTER.z, scale: CENTER.scale * heightRatio }
     const dockScale = compact ? DOCK_SCALE_COMPACT : DOCK_SCALE
 
     if (!motionOk) {

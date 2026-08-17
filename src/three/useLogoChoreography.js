@@ -35,7 +35,13 @@ const CENTER = { x: 0.15, y: 1.53, z: 0, scale: 1.15 }
 // entirely (confirmed by screenshot: the wordmark clipped off both the
 // top and right edges at CENTER's desktop values). Tuned separately
 // against a real 390x844-class viewport rather than derived by formula.
-const CENTER_COMPACT = { x: 0, y: 1.65, z: 0, scale: 0.4 }
+// y/scale have extra headroom beyond a simple frontal-view fit: at
+// near-edge-on angles during auto-rotation, perspective foreshortening on
+// this flat wordmark plane makes its near edge swing closer to the camera
+// and read taller on screen than its frontal silhouette does — a coarse
+// screenshot sweep across the rotation cycle can step right over that
+// narrow worst-case angle and look clear when it isn't.
+const CENTER_COMPACT = { x: -0.15, y: 1.9, z: 0, scale: 0.34 }
 // Below this, use the compact pose — matches the CSS breakpoint the rest
 // of the site already treats as "mobile" (index.css `@media (max-width:
 // 860px)`), so the switch lines up with layout changes visitors already see.

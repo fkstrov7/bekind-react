@@ -19,10 +19,10 @@ import useLogoChoreography from './useLogoChoreography.js'
  * an error boundary is the correct tool for "may or may not be there"
  * and doesn't have that failure mode.
  */
-export default function LogoScene({ scrollRef, pointerRef, motionOk, pointerFxOk, onHomeRoute }) {
+export default function LogoScene({ scrollRef, pointerRef, motionOk, pointerFxOk, onHomeRoute, interactive }) {
   const groupRef = useRef()
 
-  useLogoChoreography(groupRef, scrollRef, pointerRef, { motionOk, pointerFxOk, onHomeRoute })
+  useLogoChoreography(groupRef, scrollRef, pointerRef, { motionOk, pointerFxOk, onHomeRoute, interactive })
 
   return (
     <>

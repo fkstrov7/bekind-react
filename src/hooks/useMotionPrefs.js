@@ -11,7 +11,10 @@ import { useReducedMotion } from 'framer-motion'
  *   motionOk   — false if the OS says "reduce motion". Gate ALL animation.
  *   finePointer — true for mouse/trackpad. Gate hover + cursor-tracking.
  *   wide       — true above the 860px breakpoint used in index.css.
- *   canRender3D — the combination that has to hold before we pay for WebGL.
+ *   canRender3D — whether to pay for the WebGL chunk at all (desktop
+ *                 cursor-driven OR touch/mobile auto-animated).
+ *   interactive3D — true only for the desktop, cursor-following mode; false
+ *                   means the auto-rotating mode (see useLogoChoreography).
  */
 
 function useMediaQuery(query, initial = false) {
@@ -48,14 +51,24 @@ export default function useMotionPrefs() {
   const wide = useMediaQuery('(min-width: 861px)', true)
 
   const motionOk = !prefersReducedMotion
+  // The desktop, cursor-facing experience — unchanged from before.
+  const canRenderInteractive3D = motionOk && finePointer && wide
+  // Touch devices (phones, tablets) have no cursor to face, but can still
+  // afford the model — they get a simpler, self-driven animation instead
+  // of the static <LogoFallback/> image. Gated on !finePointer rather than
+  // narrow width, so it targets "no real cursor" specifically rather than
+  // a resized desktop window (which still gets the static fallback, same
+  // as before).
+  const canRenderAuto3D = motionOk && !finePointer
 
   return {
     motionOk,
     prefersReducedMotion: !!prefersReducedMotion,
     finePointer,
     wide,
-    // Phones and reduced-motion visitors never load the three.js chunk.
-    canRender3D: motionOk && finePointer && wide,
+    // Reduced-motion visitors never load the three.js chunk.
+    canRender3D: canRenderInteractive3D || canRenderAuto3D,
+    interactive3D: canRenderInteractive3D,
     // Pointer-tracked effects (magnetic buttons, tilt, custom cursor).
     pointerFxOk: motionOk && finePointer,
   }

@@ -17,7 +17,7 @@ import LogoScene from './LogoScene.jsx'
  * (see main.jsx / App.jsx), so useLocation() works normally here without any
  * prop drilling through BrandObject.
  */
-export default function LogoCanvas({ motionOk = true, pointerFxOk = true }) {
+export default function LogoCanvas({ motionOk = true, pointerFxOk = true, interactive = true }) {
   const { pathname } = useLocation()
   const onHomeRoute = pathname === '/'
 
@@ -95,6 +95,7 @@ export default function LogoCanvas({ motionOk = true, pointerFxOk = true }) {
           motionOk={motionOk}
           pointerFxOk={pointerFxOk}
           onHomeRoute={onHomeRoute}
+          interactive={interactive}
         />
       </Canvas>
     </motion.div>

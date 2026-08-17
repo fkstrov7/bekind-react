@@ -35,7 +35,7 @@ const CENTER = { x: 0.15, y: 1.53, z: 0, scale: 1.15 }
 // entirely (confirmed by screenshot: the wordmark clipped off both the
 // top and right edges at CENTER's desktop values). Tuned separately
 // against a real 390x844-class viewport rather than derived by formula.
-const CENTER_COMPACT = { x: 0, y: 1.4, z: 0, scale: 0.42 }
+const CENTER_COMPACT = { x: 0, y: 1.65, z: 0, scale: 0.4 }
 // Below this, use the compact pose — matches the CSS breakpoint the rest
 // of the site already treats as "mobile" (index.css `@media (max-width:
 // 860px)`), so the switch lines up with layout changes visitors already see.

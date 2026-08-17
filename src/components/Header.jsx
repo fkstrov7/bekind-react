@@ -61,17 +61,14 @@ export default function Header() {
         {!canRender3D && <img src="/Logosvg.svg" alt={t('nav.logoAlt')} />}
       </NavLink>
 
-      <button
-        className="nav-toggle"
-        aria-label={open ? t('nav.closeMenu') : t('nav.openMenu')}
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-      >
-        <span></span>
-        <span></span>
-        <span></span>
-      </button>
-
+      {/* Ordered after logo-mark but before the toggle button on purpose:
+          on mobile, <nav>'s <ul> goes position:fixed (the off-canvas
+          drawer), collapsing <nav> itself to zero width — but it's still a
+          real flex item in this space-between row. With the toggle button
+          BEFORE it in DOM order, that invisible zero-width box sat between
+          the button and the header's right edge, so space-between reserved
+          a gap for it and the button never actually touched the edge. The
+          toggle needs to be the LAST flex child to land flush right. */}
       <nav>
         <ul className={open ? 'open' : ''}>
           <li>
@@ -120,6 +117,17 @@ export default function Header() {
           </li>
         </ul>
       </nav>
+
+      <button
+        className="nav-toggle"
+        aria-label={open ? t('nav.closeMenu') : t('nav.openMenu')}
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
     </header>
   )
 }

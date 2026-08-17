@@ -131,17 +131,6 @@ export default function useLogoChoreography(
     const center = compact ? CENTER_COMPACT : CENTER
     const dockScale = compact ? DOCK_SCALE_COMPACT : DOCK_SCALE
 
-    // TEMP DEBUG — remove after diagnosing prod-only oversized mobile pose.
-    if (!window.__dbgLogged || performance.now() - window.__dbgLogged > 3000) {
-      window.__dbgLogged = performance.now()
-      console.log('[dbg]', JSON.stringify({
-        sizeW: state.size.width, sizeH: state.size.height,
-        vpW: state.viewport.width, vpH: state.viewport.height,
-        dpr: state.viewport.dpr, compact, centerScale: center.scale,
-        innerW: window.innerWidth,
-      }))
-    }
-
     if (!motionOk) {
       // Reduced motion: hold a resting pose, no float, no dock, no tilt.
       // Still route-aware — a non-home route shouldn't show the big

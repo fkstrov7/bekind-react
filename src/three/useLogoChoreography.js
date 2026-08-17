@@ -137,6 +137,15 @@ export default function useLogoChoreography(
     const center = compact ? CENTER_COMPACT : CENTER
     const dockScale = compact ? DOCK_SCALE_COMPACT : DOCK_SCALE
 
+    // TEMP DEBUG — updated every frame (not throttled), read externally via
+    // window.__lastDbg right before each screenshot to catch instability.
+    window.__lastDbg = {
+      sizeW: state.size.width, sizeH: state.size.height,
+      compact, centerScale: center.scale,
+      actualScaleX: group.scale.x, actualPosX: group.position.x, actualPosY: group.position.y,
+      dpr: state.viewport.dpr,
+    }
+
     if (!motionOk) {
       // Reduced motion: hold a resting pose, no float, no dock, no tilt.
       // Still route-aware — a non-home route shouldn't show the big

@@ -163,6 +163,14 @@ export default function useLogoChoreography(
     // vanishingly tiny watermark on very tall monitors.
     const effectiveHeight = MathUtils.clamp(state.size.height, REF_HEIGHT, MAX_RATIO_HEIGHT)
     const heightRatio = compact ? 1 : REF_HEIGHT / effectiveHeight
+
+    // TEMP DEBUG — remove after diagnosing prod-only desktop oversized pose.
+    window.__lastDbg = {
+      sizeW: state.size.width, sizeH: state.size.height,
+      compact, heightRatio, effectiveHeight,
+      actualScaleX: group.scale.x, actualPosY: group.position.y,
+      dpr: state.viewport.dpr, intro: introRef.current,
+    }
     const center = compact
       ? CENTER_COMPACT
       : { x: CENTER.x * heightRatio, y: CENTER.y * heightRatio, z: CENTER.z, scale: CENTER.scale * heightRatio }

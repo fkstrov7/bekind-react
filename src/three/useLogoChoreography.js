@@ -18,28 +18,21 @@ import { MathUtils } from 'three'
  * touches React state — that would re-render the tree every frame.
  */
 
-// Arrival pose. Chosen from real DOM measurements, not a single test
-// screenshot: the eyebrow's top edge sits at 269/319/409px for 800/900/
-// 1080px-tall viewports respectively (the worst case, 800px, is a common
-// laptop window height). y=1.53 + scale=1.15 keeps the object's bottom
-// edge comfortably above the eyebrow at ALL three (31-88px clearance)
-// with no top-edge clipping either — the previous y=1.4/scale=1.3 only
-// had ~8px of margin at one specific height and genuinely overlapped the
-// eyebrow text at shorter real-world windows.
-// Tuned against a 1536x695 viewport (a real reported window size — a
-// perspective camera's vertical FOV means pixels-per-world-unit is driven
-// by CSS pixel HEIGHT alone, so the SAME world-space pose renders larger
-// in pixels on a taller window, not smaller. The header/eyebrow positions
-// are both near-fixed in pixels (padding-based), so taller windows push
-// this pose further into the header instead of away from it — the
-// opposite of what "shorter window = tighter fit" intuition suggests.
-// Confirmed by screenshot sweep across 695-1080px: this exact pose only
-// looks right at REF_HEIGHT; see the ratio compensation below useFrame
-// that rescales it for every other height instead of drifting with the
-// window.
+// Arrival pose, tuned against a 1536x695 viewport — a real reported window
+// size, and deliberately the SHORTEST one this pose needs to stand on its
+// own at. A perspective camera's pixels-per-world-unit ratio is driven by
+// CSS pixel HEIGHT alone (vertical FOV), so the SAME world-space pose
+// renders LARGER in pixels on a taller window, not smaller — while the
+// header nav and hero copy both sit at near-fixed pixel offsets. That means
+// taller windows push this pose further into the header, the opposite of
+// "shorter window = tighter fit" intuition. Confirmed by a screenshot sweep
+// from 695 to 2560px height/1440px height combos: this exact pose, used
+// as-is, only looks right at REF_HEIGHT — see the one-directional ratio
+// compensation below (in useFrame) that shrinks it for every taller
+// window instead of letting it drift into the header.
 const REF_HEIGHT = 695
 const MAX_RATIO_HEIGHT = 1200
-const CENTER = { x: 0.15, y: 1.88, z: 0, scale: 0.95 }
+const CENTER = { x: 0.15, y: 2.0, z: 0, scale: 0.86 }
 
 // Portrait/narrow viewports (phones) have a much narrower world-space
 // frustum than desktop at the same vertical FOV — width scales with
@@ -163,14 +156,6 @@ export default function useLogoChoreography(
     // vanishingly tiny watermark on very tall monitors.
     const effectiveHeight = MathUtils.clamp(state.size.height, REF_HEIGHT, MAX_RATIO_HEIGHT)
     const heightRatio = compact ? 1 : REF_HEIGHT / effectiveHeight
-
-    // TEMP DEBUG — remove after diagnosing prod-only desktop oversized pose.
-    window.__lastDbg = {
-      sizeW: state.size.width, sizeH: state.size.height,
-      compact, heightRatio, effectiveHeight,
-      actualScaleX: group.scale.x, actualPosY: group.position.y,
-      dpr: state.viewport.dpr, intro: introRef.current,
-    }
     const center = compact
       ? CENTER_COMPACT
       : { x: CENTER.x * heightRatio, y: CENTER.y * heightRatio, z: CENTER.z, scale: CENTER.scale * heightRatio }
